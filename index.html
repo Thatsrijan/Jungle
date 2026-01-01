@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Gift For Maalkin</title>
+    <style>
+        /* Reset defaults */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #111; /* Dark background for desktop focus */
+            width: 100vw;
+            height: 100vh;
+            /* iOS Safari hack: Use dynamic viewport height to avoid address bar issues */
+            height: 100dvh; 
+            overflow: hidden; /* Stops "bounce" scrolling */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Disable text selection */
+            user-select: none;
+            -webkit-user-select: none; 
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        canvas {
+            display: block;
+            background-color: #000;
+            /* Tells browser: "Do not handle touches, the game will do it" */
+            touch-action: none; 
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
