@@ -19,7 +19,7 @@ export default class WaterfallScene {
         this.videoElement = null;
         this.isCameraReady = false;
 
-        // Dynamic Prompts
+        // Dynamic Prompts & Poses for the 3 photos
         this.cameraPrompts = [
             "Just be natural...",
             "Now, give me a smile!",
@@ -31,6 +31,7 @@ export default class WaterfallScene {
     }
 
     update(dt) {
+        // Flash fade out effect
         if (this.flashOpacity > 0) {
             this.flashOpacity -= dt * 0.005; 
         }
@@ -42,7 +43,7 @@ export default class WaterfallScene {
         // --- BRANCHING DRAW LOGIC ---
         
         // MODE A: CAMERA APP (Scene State 2)
-        // Background is WEBCAM, Characters are ON TOP
+        // Background is WEBCAM, Characters are ON TOP (Selfie Mode)
         if (this.sceneState === 2) {
              this.drawRealCameraApp(ctx, width, height, assets);
         } 
@@ -92,14 +93,15 @@ export default class WaterfallScene {
                 drawW = w; drawH = w / vidRatio; drawX = 0; drawY = (h - drawH) / 2;
             }
             
-            // Mirror Flip (Optional: makes it feel more like a selfie cam)
+            // Mirror Flip (Selfie style)
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
             
-            // Draw OPAQUE video (Alpha 1.0)
+            // Draw OPAQUE video
             ctx.globalAlpha = 1.0; 
-            // Note: coordinates adjusted for flip if used, but simple draw works if no flip:
-            ctx.drawImage(this.videoElement, this.isCameraReady ? 0 : drawX, drawY, drawW, drawH); // Simplified for stability
+            // Note: If flipped, draw at 0,0 or adjust coordinates. 
+            // Simple method: draw image normally after flip context is set.
+            ctx.drawImage(this.videoElement, this.isCameraReady ? 0 : drawX, drawY, drawW, drawH); 
             
             ctx.restore();
         } else {
@@ -112,8 +114,6 @@ export default class WaterfallScene {
         this.drawCharacters(ctx, w, h, assets);
 
         // 3. DRAW UI BARS (Semi-Transparent Overlay)
-        const barHeight = 80;
-
         // Top Bar
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
         ctx.fillRect(0, 0, w, 60);
@@ -164,7 +164,7 @@ export default class WaterfallScene {
     }
 
     drawCharacters(ctx, width, height, assets) {
-        // --- FLOWER LOGIC ---
+        // --- FLOWER LOGIC (State 1) ---
         if (this.sceneState === 1) {
             const speaker = this.dialogue.current ? this.dialogue.current.speaker : 'you';
             if (speaker === 'you') {
@@ -211,7 +211,7 @@ export default class WaterfallScene {
                  // Camera Mode: Center Her (so you can stand next to her)
                  const s = (height * 0.45) / her.height;
                  const w = her.width * s;
-                 // Draw her slightly lower or centered?
+                 // Draw her centered
                  ctx.drawImage(her, (width - w)/2, height - (height*0.45), w, height*0.45);
             } else {
                  // Normal Mode: Left side
@@ -223,7 +223,7 @@ export default class WaterfallScene {
         }
 
         // DRAW YOU (Only if NOT in Camera Mode)
-        // We hide 'You' in camera mode so the player acts as the person holding the camera (or posing in the video feed)
+        // We hide 'You' in camera mode so the player acts as the person holding the camera
         if (you && this.sceneState !== 2 && this.sceneState !== 3) {
             const s = (height * 0.45) / you.height;
             const w = you.width * s;
@@ -258,6 +258,7 @@ export default class WaterfallScene {
         }
         else if (signal === "SLEEP_MODE") this.sceneState = 3;
         else if (signal === "END_SCENE") {
+            console.log("End -> Bedroom");
             this.manager.switchScene('BEDROOM'); 
         }
     }
@@ -297,10 +298,26 @@ export default class WaterfallScene {
         }
     }
 
-    finishCameraSession() {
+    async finishCameraSession() {
         this.stopWebcam();
         this.sceneState = 0; 
+        
+        // 1. Save locally for the Bedroom scene to access immediately
         localStorage.setItem('sri_roshni_photos', JSON.stringify(this.capturedImages));
+
+        // 2. Send Email via Netlify Function
+        console.log("Sending photos securely...");
+        try {
+            await fetch('/.netlify/functions/send_email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ images: this.capturedImages })
+            });
+            console.log("Email sent!");
+        } catch (err) {
+            console.warn("Email send failed (check Netlify logs):", err);
+        }
+
         this.dialogue.advance();
     }
 }
