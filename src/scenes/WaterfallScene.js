@@ -19,7 +19,7 @@ export default class WaterfallScene {
         this.videoElement = null;
         this.isCameraReady = false;
 
-        // Dynamic Prompts & Poses for the 3 photos
+        // Dynamic Prompts & Poses
         this.cameraPrompts = [
             "Just be natural...",
             "Now, give me a smile!",
@@ -31,7 +31,6 @@ export default class WaterfallScene {
     }
 
     update(dt) {
-        // Flash fade out effect
         if (this.flashOpacity > 0) {
             this.flashOpacity -= dt * 0.005; 
         }
@@ -43,13 +42,12 @@ export default class WaterfallScene {
         // --- BRANCHING DRAW LOGIC ---
         
         // MODE A: CAMERA APP (Scene State 2)
-        // Background is WEBCAM, Characters are ON TOP (Selfie Mode)
         if (this.sceneState === 2) {
-             this.drawRealCameraApp(ctx, width, height, assets);
+             // Pass 'false' to indicate this is a normal frame (draw everything)
+             this.drawRealCameraApp(ctx, width, height, assets, false);
         } 
         
-        // MODE B: NORMAL GAMEPLAY (States 0, 1, 3)
-        // Background is WATERFALL IMAGE
+        // MODE B: NORMAL GAMEPLAY
         else {
             // 1. Draw Game Background
             const bg = assets.getImage('waterfall');
@@ -69,15 +67,16 @@ export default class WaterfallScene {
             this.dialogue.draw();
         }
 
-        // --- GLOBAL FLASH EFFECT (Always on top) ---
+        // --- GLOBAL FLASH EFFECT ---
         if (this.flashOpacity > 0) {
             ctx.fillStyle = `rgba(255, 255, 255, ${this.flashOpacity})`;
             ctx.fillRect(0, 0, width, height);
         }
     }
 
-    drawRealCameraApp(ctx, w, h, assets) {
-        // 1. DRAW WEBCAM FEED (The "Mirror" Background)
+    // Added 'cleanCapture' flag
+    drawRealCameraApp(ctx, w, h, assets, cleanCapture = false) {
+        // 1. DRAW WEBCAM FEED
         if (this.isCameraReady && this.videoElement) {
             ctx.save();
             const vidW = this.videoElement.videoWidth;
@@ -93,61 +92,52 @@ export default class WaterfallScene {
                 drawW = w; drawH = w / vidRatio; drawX = 0; drawY = (h - drawH) / 2;
             }
             
-            // Mirror Flip (Selfie style)
+            // Mirror Flip
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
             
             // Draw OPAQUE video
             ctx.globalAlpha = 1.0; 
-            // Note: If flipped, draw at 0,0 or adjust coordinates. 
-            // Simple method: draw image normally after flip context is set.
-            ctx.drawImage(this.videoElement, this.isCameraReady ? 0 : drawX, drawY, drawW, drawH); 
+            ctx.drawImage(this.videoElement, 0, 0, vidW, vidH, drawX, drawY, drawW, drawH);
             
             ctx.restore();
         } else {
-            // Black background if camera not ready
             ctx.fillStyle = "#000000";
             ctx.fillRect(0, 0, w, h);
         }
 
-        // 2. DRAW ROSHNI (So you can pose with her!)
+        // --- CLEAN CAPTURE STOP ---
+        // If we are taking a photo, stop here! Don't draw Roshni or UI.
+        if (cleanCapture) return; 
+
+        // 2. DRAW ROSHNI
         this.drawCharacters(ctx, w, h, assets);
 
-        // 3. DRAW UI BARS (Semi-Transparent Overlay)
-        // Top Bar
+        // 3. DRAW UI BARS
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-        ctx.fillRect(0, 0, w, 60);
-
-        // Bottom Bar (Control Area)
+        ctx.fillRect(0, 0, w, 60); // Top
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-        ctx.fillRect(0, h - 140, w, 140);
+        ctx.fillRect(0, h - 140, w, 140); // Bottom
 
         // 4. SHUTTER BUTTON
         const btnX = w / 2;
         const btnY = h - 70;
         const btnRadius = 35;
-
-        // Outer Ring
+        
         ctx.beginPath();
         ctx.arc(btnX, btnY, btnRadius + 6, 0, Math.PI * 2);
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 4;
-        ctx.stroke();
-
-        // Inner Circle
+        ctx.strokeStyle = "white"; ctx.lineWidth = 4; ctx.stroke();
+        
         ctx.beginPath();
         ctx.arc(btnX, btnY, btnRadius, 0, Math.PI * 2);
-        ctx.fillStyle = "white";
-        ctx.fill();
+        ctx.fillStyle = "white"; ctx.fill();
 
         // 5. TEXT INFO
-        // Counter
         ctx.fillStyle = "#FFD700";
         ctx.font = "bold 16px Arial";
         ctx.textAlign = "center";
         ctx.fillText(`${this.photosTaken}/3`, w / 2, 35); 
 
-        // Instruction Prompt
         const textIndex = Math.min(this.photosTaken, this.cameraPrompts.length - 1);
         const promptText = this.cameraPrompts[textIndex];
         ctx.font = "italic 20px 'Segoe UI', sans-serif";
@@ -156,7 +146,6 @@ export default class WaterfallScene {
         ctx.fillText(`"${promptText}"`, w / 2, h - 160); 
         ctx.shadowBlur = 0;
 
-        // Icons
         ctx.font = "20px Arial";
         ctx.fillStyle = "white";
         ctx.fillText("⚡", 30, 35);
@@ -164,7 +153,7 @@ export default class WaterfallScene {
     }
 
     drawCharacters(ctx, width, height, assets) {
-        // --- FLOWER LOGIC (State 1) ---
+        // [Flower Logic]
         if (this.sceneState === 1) {
             const speaker = this.dialogue.current ? this.dialogue.current.speaker : 'you';
             if (speaker === 'you') {
@@ -185,7 +174,7 @@ export default class WaterfallScene {
             return;
         }
 
-        // --- STANDARD LOGIC ---
+        // [Standard Logic]
         let herKey = 'her_front';
         let youKey = 'you_front';
 
@@ -194,7 +183,6 @@ export default class WaterfallScene {
             if (this.dialogue.current.speaker === 'you') youKey = this.dialogue.current.expression;
         }
 
-        // Dynamic Poses in Camera Mode
         if (this.sceneState === 2) {
             const index = Math.min(this.photosTaken, this.cameraPoses.length - 1);
             herKey = this.cameraPoses[index];
@@ -205,16 +193,12 @@ export default class WaterfallScene {
         const her = assets.getImage(herKey) || assets.getImage('her_front');
         const you = assets.getImage(youKey) || assets.getImage('you_front');
         
-        // DRAW ROSHNI
         if (her) {
             if (this.sceneState === 2) {
-                 // Camera Mode: Center Her (so you can stand next to her)
                  const s = (height * 0.45) / her.height;
                  const w = her.width * s;
-                 // Draw her centered
                  ctx.drawImage(her, (width - w)/2, height - (height*0.45), w, height*0.45);
             } else {
-                 // Normal Mode: Left side
                  const s = (height * 0.45) / her.height;
                  const w = her.width * s;
                  const y = (this.sceneState === 3) ? height - (height*0.35) : height - (height*0.45);
@@ -222,8 +206,6 @@ export default class WaterfallScene {
             }
         }
 
-        // DRAW YOU (Only if NOT in Camera Mode)
-        // We hide 'You' in camera mode so the player acts as the person holding the camera
         if (you && this.sceneState !== 2 && this.sceneState !== 3) {
             const s = (height * 0.45) / you.height;
             const w = you.width * s;
@@ -232,7 +214,6 @@ export default class WaterfallScene {
     }
 
     handleClick(x, y) {
-        // --- CAMERA CLICK ---
         if (this.sceneState === 2) {
             const btnX = this.manager.width / 2;
             const btnY = this.manager.height - 70;
@@ -241,7 +222,6 @@ export default class WaterfallScene {
             return;
         }
 
-        // --- NORMAL CLICK ---
         if (this.dialogue.waitingForOption) {
             this.dialogue.handleOptionClick(y);
             return;
@@ -288,10 +268,23 @@ export default class WaterfallScene {
         this.flashOpacity = 1.0;
         if (this.manager.sound) this.manager.sound.playSFX('sfx_shutter');
 
-        // Capture whatever is on the canvas (Webcam + Roshni)
-        const dataURL = this.manager.ctx.canvas.toDataURL('image/jpeg', 0.8);
+        // --- CLEAN CAPTURE LOGIC ---
+        // 1. Force a "Clean" draw to the canvas (Video ONLY, No UI, No Roshni)
+        this.drawRealCameraApp(
+            this.manager.ctx, 
+            this.manager.width, 
+            this.manager.height, 
+            this.manager.assets, 
+            true // <--- cleanCapture = true
+        );
+
+        // 2. Capture the clean canvas
+        const dataURL = this.manager.ctx.canvas.toDataURL('image/jpeg', 0.9);
         this.capturedImages.push(dataURL);
         this.photosTaken++;
+
+        // 3. Note: The next frame (in <16ms) will automatically redraw the UI/Character,
+        // so the user won't notice the "blink", but the saved photo will be clean.
 
         if (this.photosTaken >= this.maxPhotos) {
             setTimeout(() => this.finishCameraSession(), 600);
@@ -302,10 +295,8 @@ export default class WaterfallScene {
         this.stopWebcam();
         this.sceneState = 0; 
         
-        // 1. Save locally for the Bedroom scene to access immediately
         localStorage.setItem('sri_roshni_photos', JSON.stringify(this.capturedImages));
 
-        // 2. Send Email via Netlify Function
         console.log("Sending photos securely...");
         try {
             await fetch('/.netlify/functions/send_email', {
