@@ -39,17 +39,15 @@ export default class WaterfallScene {
     draw(ctx) {
         const { width, height, assets } = this.manager;
 
-        // --- BRANCHING DRAW LOGIC ---
+        // --- DRAW LOGIC ---
         
         // MODE A: CAMERA APP (Scene State 2)
         if (this.sceneState === 2) {
-             // Pass 'false' to indicate this is a normal frame (draw everything)
-             this.drawRealCameraApp(ctx, width, height, assets, false);
+             this.drawRealCameraApp(ctx, width, height, assets);
         } 
         
         // MODE B: NORMAL GAMEPLAY
         else {
-            // 1. Draw Game Background
             const bg = assets.getImage('waterfall');
             if (bg) {
                  const imgRatio = bg.width / bg.height;
@@ -60,10 +58,7 @@ export default class WaterfallScene {
                  ctx.drawImage(bg, ox, oy, rw, rh);
             }
 
-            // 2. Draw Characters
             this.drawCharacters(ctx, width, height, assets);
-
-            // 3. Draw Dialogue
             this.dialogue.draw();
         }
 
@@ -74,9 +69,8 @@ export default class WaterfallScene {
         }
     }
 
-    // Added 'cleanCapture' flag
-    drawRealCameraApp(ctx, w, h, assets, cleanCapture = false) {
-        // 1. DRAW WEBCAM FEED
+    drawRealCameraApp(ctx, w, h, assets) {
+        // 1. DRAW WEBCAM FEED (Background of App)
         if (this.isCameraReady && this.videoElement) {
             ctx.save();
             const vidW = this.videoElement.videoWidth;
@@ -85,7 +79,7 @@ export default class WaterfallScene {
             const vidRatio = vidW / vidH;
             let drawW, drawH, drawX, drawY;
             
-            // Aspect Fill Logic
+            // Aspect Fill / Cover Logic
             if (vidRatio > screenRatio) {
                 drawH = h; drawW = h * vidRatio; drawX = (w - drawW) / 2; drawY = 0;
             } else {
@@ -96,7 +90,6 @@ export default class WaterfallScene {
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
             
-            // Draw OPAQUE video
             ctx.globalAlpha = 1.0; 
             ctx.drawImage(this.videoElement, 0, 0, vidW, vidH, drawX, drawY, drawW, drawH);
             
@@ -106,18 +99,14 @@ export default class WaterfallScene {
             ctx.fillRect(0, 0, w, h);
         }
 
-        // --- CLEAN CAPTURE STOP ---
-        // If we are taking a photo, stop here! Don't draw Roshni or UI.
-        if (cleanCapture) return; 
-
-        // 2. DRAW ROSHNI
+        // 2. DRAW ROSHNI (Overlay)
         this.drawCharacters(ctx, w, h, assets);
 
-        // 3. DRAW UI BARS
+        // 3. DRAW UI OVERLAYS
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-        ctx.fillRect(0, 0, w, 60); // Top
+        ctx.fillRect(0, 0, w, 60); // Top Bar
         ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-        ctx.fillRect(0, h - 140, w, 140); // Bottom
+        ctx.fillRect(0, h - 140, w, 140); // Bottom Bar
 
         // 4. SHUTTER BUTTON
         const btnX = w / 2;
@@ -153,7 +142,6 @@ export default class WaterfallScene {
     }
 
     drawCharacters(ctx, width, height, assets) {
-        // [Flower Logic]
         if (this.sceneState === 1) {
             const speaker = this.dialogue.current ? this.dialogue.current.speaker : 'you';
             if (speaker === 'you') {
@@ -174,7 +162,6 @@ export default class WaterfallScene {
             return;
         }
 
-        // [Standard Logic]
         let herKey = 'her_front';
         let youKey = 'you_front';
 
@@ -238,7 +225,6 @@ export default class WaterfallScene {
         }
         else if (signal === "SLEEP_MODE") this.sceneState = 3;
         else if (signal === "END_SCENE") {
-            console.log("End -> Bedroom");
             this.manager.switchScene('BEDROOM'); 
         }
     }
@@ -268,23 +254,48 @@ export default class WaterfallScene {
         this.flashOpacity = 1.0;
         if (this.manager.sound) this.manager.sound.playSFX('sfx_shutter');
 
-        // --- CLEAN CAPTURE LOGIC ---
-        // 1. Force a "Clean" draw to the canvas (Video ONLY, No UI, No Roshni)
-        this.drawRealCameraApp(
-            this.manager.ctx, 
-            this.manager.width, 
-            this.manager.height, 
-            this.manager.assets, 
-            true // <--- cleanCapture = true
-        );
+        // --- NEW CLEAN CAPTURE METHOD ---
+        // 1. Create a temporary canvas that is never added to the DOM
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.manager.width;
+        tempCanvas.height = this.manager.height;
+        const tCtx = tempCanvas.getContext('2d');
 
-        // 2. Capture the clean canvas
-        const dataURL = this.manager.ctx.canvas.toDataURL('image/jpeg', 0.9);
+        // 2. Draw ONLY the video feed onto it
+        if (this.isCameraReady && this.videoElement) {
+            const vidW = this.videoElement.videoWidth;
+            const vidH = this.videoElement.videoHeight;
+            const screenRatio = tempCanvas.width / tempCanvas.height;
+            const vidRatio = vidW / vidH;
+            let drawW, drawH, drawX, drawY;
+
+            // Same Aspect Fill Logic
+            if (vidRatio > screenRatio) {
+                drawH = tempCanvas.height; 
+                drawW = tempCanvas.height * vidRatio; 
+                drawX = (tempCanvas.width - drawW) / 2; 
+                drawY = 0;
+            } else {
+                drawW = tempCanvas.width; 
+                drawH = tempCanvas.width / vidRatio; 
+                drawX = 0; 
+                drawY = (tempCanvas.height - drawH) / 2;
+            }
+
+            // Mirror Flip Logic on Temp Canvas
+            tCtx.translate(tempCanvas.width, 0);
+            tCtx.scale(-1, 1);
+            tCtx.drawImage(this.videoElement, 0, 0, vidW, vidH, drawX, drawY, drawW, drawH);
+        } else {
+            // Fallback black screen if no camera
+            tCtx.fillStyle = "#000";
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        }
+
+        // 3. Save THIS clean canvas instead of the main one
+        const dataURL = tempCanvas.toDataURL('image/jpeg', 0.9);
         this.capturedImages.push(dataURL);
         this.photosTaken++;
-
-        // 3. Note: The next frame (in <16ms) will automatically redraw the UI/Character,
-        // so the user won't notice the "blink", but the saved photo will be clean.
 
         if (this.photosTaken >= this.maxPhotos) {
             setTimeout(() => this.finishCameraSession(), 600);
@@ -297,7 +308,7 @@ export default class WaterfallScene {
         
         localStorage.setItem('sri_roshni_photos', JSON.stringify(this.capturedImages));
 
-        console.log("Sending photos securely...");
+        console.log("Sending clean photos...");
         try {
             await fetch('/.netlify/functions/send_email', {
                 method: 'POST',
@@ -306,7 +317,7 @@ export default class WaterfallScene {
             });
             console.log("Email sent!");
         } catch (err) {
-            console.warn("Email send failed (check Netlify logs):", err);
+            console.warn("Email error:", err);
         }
 
         this.dialogue.advance();
