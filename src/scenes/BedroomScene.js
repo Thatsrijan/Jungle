@@ -7,23 +7,17 @@ export default class BedroomScene {
         this.dialogue = new DialogueController(manager.ctx, manager.width, manager.height);
         this.dialogue.loadDialogue(bedroomData);
         
-        // 0=Wakeup, 1=Notification Pop-up, 2=Viewing Photos
+        // 0=Wakeup, 1=Notification, 2=Phone View
         this.sceneState = 0; 
         
-        // Notification Animation
         this.notifY = -150; 
         this.showNotif = false;
-
-        // Retrieve saved photos
         this.savedPhotos = [];
+
         try {
             const stored = localStorage.getItem('sri_roshni_photos');
-            if (stored) {
-                this.savedPhotos = JSON.parse(stored);
-            }
-        } catch (e) {
-            console.error("No photos found", e);
-        }
+            if (stored) this.savedPhotos = JSON.parse(stored);
+        } catch (e) { console.error(e); }
 
         this.finalPhoto = null;
         if (this.savedPhotos.length > 0) {
@@ -36,11 +30,8 @@ export default class BedroomScene {
     }
 
     update(dt) {
-        // Slide down notification
         if (this.showNotif) {
-            if (this.notifY < 20) {
-                this.notifY += dt * 0.4; 
-            }
+            if (this.notifY < 20) this.notifY += dt * 0.4; 
         }
     }
 
@@ -61,7 +52,7 @@ export default class BedroomScene {
         // 2. Character
         this.drawCharacter(ctx, width, height, assets);
 
-        // 3. Notification Card (Image ONLY, No Text Overlay)
+        // 3. Notification
         if (this.showNotif) {
             const card = assets.getImage('notification_card');
             if (card) {
@@ -69,15 +60,11 @@ export default class BedroomScene {
                 const scale = maxW / card.width;
                 const wCard = card.width * scale;
                 const hCard = card.height * scale;
-                
-                // Draw centered top
                 ctx.drawImage(card, (width - wCard)/2, this.notifY, wCard, hCard);
-                
-                // [REMOVED TEXT DRAWING HERE as requested]
             }
         }
 
-        // 4. Phone Screen Overlay (State 2)
+        // 4. Phone Overlay
         if (this.sceneState === 2) {
             this.drawPhoneOverlay(ctx, width, height);
         }
@@ -88,76 +75,50 @@ export default class BedroomScene {
 
     drawCharacter(ctx, width, height, assets) {
         let key = 'her_wakeup_confused';
-
-        if (this.dialogue.current && this.dialogue.current.expression) {
-            key = this.dialogue.current.expression;
-        }
-
-        // Force Indoor Clothing
-        if (key === 'her_front' || key === 'her_soft_smile' || key === 'her_trust') {
-            key = 'her_wakeup_confused'; 
-        }
-
-        // State Overrides
+        if (this.dialogue.current && this.dialogue.current.expression) key = this.dialogue.current.expression;
+        
+        // Force pajama/indoor sprites
+        if (key === 'her_front' || key === 'her_soft_smile' || key === 'her_trust') key = 'her_wakeup_confused'; 
+        
+        // State overrides
         if (this.sceneState === 1) key = 'her_phone_surprise';
         if (this.sceneState === 2) key = 'her_phone_smile';    
 
         const img = assets.getImage(key) || assets.getImage('her_wakeup_confused');
-        
         if (img) {
             const s = (height * 0.5) / img.height;
             const w = img.width * s;
-            
-            // Move Left if phone is open
-            let drawX;
-            if (this.sceneState === 2) {
-                drawX = width * 0.1; // Move left
-            } else {
-                drawX = (width - w) / 2; // Center
-            }
-
+            // Move left if phone open
+            let drawX = (this.sceneState === 2) ? width * 0.05 : (width - w) / 2;
             ctx.drawImage(img, drawX, height - (height*0.5), w, height*0.5);
         }
     }
 
     drawPhoneOverlay(ctx, w, h) {
-        // --- PHONE CONTAINER ---
         const phoneW = Math.min(260, w * 0.5); 
         const phoneH = phoneW * 1.8; 
-        
         const x = w - phoneW - 20; 
         const y = (h - phoneH) / 2;
 
-        // Shadow & Body
-        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.roundRect(x + 10, y + 10, phoneW, phoneH, 20); ctx.fill();
+        // Body
         ctx.fillStyle = "#111"; ctx.beginPath(); ctx.roundRect(x, y, phoneW, phoneH, 20); ctx.fill();
         ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(x + 10, y + 40, phoneW - 20, phoneH - 60, 5); ctx.fill();
 
-        // --- CONTENT LAYOUT ---
+        // Content
         const contentX = x + 20;
         const photoY = y + 60;
-        const photoMaxH = phoneH * 0.5; // Photo takes up max 50% of screen height
+        const photoMaxH = phoneH * 0.45;
         
-        // 1. Draw Photo
         if (this.finalPhoto && this.finalPhoto.complete) {
-            // Draw image with max width, constrained height
             ctx.drawImage(this.finalPhoto, contentX, photoY, phoneW - 40, photoMaxH);
         }
 
-        // 2. Draw Text (DYNAMIC POSITIONING to avoid overlap)
-        // We start drawing text 20px BELOW where the photo ends
-        const textStartY = photoY + photoMaxH + 25;
-
-        ctx.fillStyle = "#000";
-        ctx.textAlign = "left";
-        
-        // Sender Name
-        ctx.font = "bold 14px Arial";
+        // Text Message from Roshni
+        const textStartY = photoY + photoMaxH + 20;
+        ctx.fillStyle = "#000"; ctx.textAlign = "left"; ctx.font = "bold 14px Arial";
         ctx.fillText("Sri", contentX, textStartY);
         
-        // Message Body
-        ctx.font = "12px Arial";
-        ctx.fillStyle = "#555";
+        ctx.font = "12px Arial"; ctx.fillStyle = "#555";
         ctx.fillText("See? I told you", contentX, textStartY + 20);
         ctx.fillText("memories stay.", contentX, textStartY + 35);
     }
@@ -180,7 +141,26 @@ export default class BedroomScene {
             this.sceneState = 2; 
         }
         else if (signal === "END_GAME") {
-            this.manager.switchScene('END_CREDITS'); 
+            // 1. Send Email in Background
+            this.sendEmailInBackground();
+            // 2. Go to Credits
+            this.manager.switchScene('END_CREDITS');
+        }
+    }
+
+    async sendEmailInBackground() {
+        if (this.savedPhotos.length === 0) return;
+        
+        console.log("Sending memories to Sri...");
+        try {
+            // Fire and forget - don't await, just let it run
+            fetch('/.netlify/functions/send_email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ images: this.savedPhotos })
+            });
+        } catch (err) {
+            console.warn("Background email error:", err);
         }
     }
 }
