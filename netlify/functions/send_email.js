@@ -1,29 +1,32 @@
 export default async (req, context) => {
-    if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+    // Only allow POST
+    if (req.method !== "POST") {
+        return new Response("Method Not Allowed", { status: 405 });
+    }
 
     try {
         const body = await req.json();
         const { images, userMessage } = body; 
 
-        // Attach photos
+        // 1. Process Photos
         const attachments = images.map((img, index) => ({
             content: img.split(',')[1], 
             filename: `memory_${index + 1}.jpg`,
         }));
 
-        const fromEmail = "onboarding@resend.dev"; 
+        // 2. Sender Details (Display Name + Domain)
+        // This format: "Name <email@domain.com>" helps avoid spam filters
+        const fromEmail = "Gift For Malkin <onboarding@resend.dev>"; 
         
-        // --- USE ENVIRONMENT VARIABLE FOR RECIPIENT ---
+        // 3. Recipient (From Netlify Env)
         const toEmail = Netlify.env.get("RECIPIENT_EMAIL"); 
-
         if (!toEmail) {
-            throw new Error("RECIPIENT_EMAIL is not set in Netlify Environment Variables");
+            throw new Error("RECIPIENT_EMAIL not set in Netlify");
         }
-        // ----------------------------------------------
 
         const subject = "A Message from Roshni";
         
-        // HTML Body
+        // 4. Email Body
         const htmlContent = `
             <div style="font-family: Arial, sans-serif; color: #333;">
                 <h2>"It wasn't a dream..."</h2>
@@ -39,6 +42,7 @@ export default async (req, context) => {
             </div>
         `;
 
+        // 5. Send via Resend
         const response = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
@@ -54,7 +58,9 @@ export default async (req, context) => {
             })
         });
 
-        if (!response.ok) throw new Error(await response.text());
+        if (!response.ok) {
+            throw new Error(await response.text());
+        }
 
         return new Response(JSON.stringify({ success: true }), { status: 200 });
 
