@@ -7,7 +7,7 @@ export default class BedroomScene {
         this.dialogue = new DialogueController(manager.ctx, manager.width, manager.height);
         this.dialogue.loadDialogue(bedroomData);
         
-        // 0=Wakeup, 1=Notification, 2=Phone View, 3=Write Message
+        // 0=Wakeup, 1=Notification, 2=Phone View, 3=Input Mode
         this.sceneState = 0; 
         
         this.notifY = -150; 
@@ -86,6 +86,7 @@ export default class BedroomScene {
         // Force indoor clothes
         if (key === 'her_front' || key === 'her_soft_smile' || key === 'her_trust') key = 'her_wakeup_confused'; 
         
+        // State overrides
         if (this.sceneState === 1) key = 'her_phone_surprise';
         if (this.sceneState >= 2) key = 'her_phone_smile';    
 
@@ -128,9 +129,9 @@ export default class BedroomScene {
     createInputUI() {
         if (this.inputContainer) return; 
 
-        // Container (Fixed Position to ensure visibility)
+        // Container
         const div = document.createElement('div');
-        div.style.position = 'fixed'; // Changed from absolute
+        div.style.position = 'fixed'; 
         div.style.top = '50%';
         div.style.left = '50%';
         div.style.transform = 'translate(-50%, -50%)';
@@ -142,11 +143,11 @@ export default class BedroomScene {
         div.style.display = 'flex';
         div.style.flexDirection = 'column';
         div.style.gap = '15px';
-        div.style.zIndex = '10000'; // Very high Z-index
+        div.style.zIndex = '10000';
 
         // Label
         const label = document.createElement('div');
-        label.innerText = "Attach a note to this memory:"; // Neutral text
+        label.innerText = "Attach a note to this memory:"; // NEUTRAL TEXT
         label.style.fontFamily = 'Arial, sans-serif';
         label.style.fontWeight = 'bold';
         label.style.color = '#333';
@@ -154,7 +155,7 @@ export default class BedroomScene {
 
         // Text Area
         const ta = document.createElement('textarea');
-        ta.placeholder = "Write your thoughts about this moment... (Optional)";
+        ta.placeholder = "Write your thoughts... (Optional)";
         ta.style.width = '100%';
         ta.style.height = '100px';
         ta.style.padding = '10px';
@@ -167,8 +168,8 @@ export default class BedroomScene {
 
         // Send Button
         const btn = document.createElement('button');
-        btn.innerText = "Send & Finish";
-        btn.style.background = '#007AFF'; // Blue nice button
+        btn.innerText = "Save & Finish";
+        btn.style.background = '#007AFF'; 
         btn.style.color = 'white';
         btn.style.border = 'none';
         btn.style.padding = '12px';
@@ -193,7 +194,7 @@ export default class BedroomScene {
     async handleSendClick() {
         const message = this.messageInput.value;
         const btn = this.inputContainer.querySelector('button');
-        btn.innerText = "Sending...";
+        btn.innerText = "Saving...";
         btn.disabled = true;
 
         try {
@@ -215,7 +216,7 @@ export default class BedroomScene {
     }
 
     handleClick(x, y) {
-        // If the input UI is open, ignore clicks on canvas
+        // Ignore clicks on canvas if input is open
         if (this.sceneState === 3) return;
 
         if (this.dialogue.waitingForOption) {
@@ -236,7 +237,7 @@ export default class BedroomScene {
         }
         else if (signal === "END_GAME") {
             this.sceneState = 3; 
-            this.createInputUI(); // Triggers the popup
+            this.createInputUI(); // Show Input Window
         }
     }
 }
