@@ -147,7 +147,7 @@ export default class BedroomScene {
 
         // Label
         const label = document.createElement('div');
-        label.innerText = "Attach a note to this memory:"; // NEUTRAL TEXT
+        label.innerText = "Attach a note to this memory (or Review) :"; // NEUTRAL TEXT
         label.style.fontFamily = 'Arial, sans-serif';
         label.style.fontWeight = 'bold';
         label.style.color = '#333';
