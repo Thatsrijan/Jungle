@@ -19,14 +19,6 @@ export default class WaterfallScene {
         this.videoElement = null;
         this.isCameraReady = false;
 
-        // Dynamic Prompts & Poses
-        this.cameraPrompts = [
-            "Just be natural...",
-            "Now, give me a smile!",
-            "Look right at me..." 
-        ];
-        this.cameraPoses = ['her_front', 'her_soft_smile', 'her_trust'];
-
         if(this.manager.sound) this.manager.sound.playBGM('bgm_waterfall'); 
     }
 
@@ -62,7 +54,7 @@ export default class WaterfallScene {
             this.dialogue.draw();
         }
 
-        // --- GLOBAL FLASH EFFECT ---
+        // --- FLASH EFFECT ---
         if (this.flashOpacity > 0) {
             ctx.fillStyle = `rgba(255, 255, 255, ${this.flashOpacity})`;
             ctx.fillRect(0, 0, width, height);
@@ -70,7 +62,7 @@ export default class WaterfallScene {
     }
 
     drawRealCameraApp(ctx, w, h, assets) {
-        // 1. DRAW WEBCAM FEED (Background of App)
+        // 1. DRAW WEBCAM FEED (Full Screen)
         if (this.isCameraReady && this.videoElement) {
             ctx.save();
             const vidW = this.videoElement.videoWidth;
@@ -79,7 +71,7 @@ export default class WaterfallScene {
             const vidRatio = vidW / vidH;
             let drawW, drawH, drawX, drawY;
             
-            // Aspect Fill / Cover Logic
+            // Aspect Fill
             if (vidRatio > screenRatio) {
                 drawH = h; drawW = h * vidRatio; drawX = (w - drawW) / 2; drawY = 0;
             } else {
@@ -95,20 +87,12 @@ export default class WaterfallScene {
             
             ctx.restore();
         } else {
-            ctx.fillStyle = "#000000";
+            // Fallback black screen
+            ctx.fillStyle = "#000";
             ctx.fillRect(0, 0, w, h);
         }
 
-        // 2. DRAW ROSHNI (Overlay)
-        this.drawCharacters(ctx, w, h, assets);
-
-        // 3. DRAW UI OVERLAYS
-        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-        ctx.fillRect(0, 0, w, 60); // Top Bar
-        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-        ctx.fillRect(0, h - 140, w, 140); // Bottom Bar
-
-        // 4. SHUTTER BUTTON
+        // 2. SHUTTER BUTTON (Only UI Element)
         const btnX = w / 2;
         const btnY = h - 70;
         const btnRadius = 35;
@@ -121,24 +105,7 @@ export default class WaterfallScene {
         ctx.arc(btnX, btnY, btnRadius, 0, Math.PI * 2);
         ctx.fillStyle = "white"; ctx.fill();
 
-        // 5. TEXT INFO
-        ctx.fillStyle = "#FFD700";
-        ctx.font = "bold 16px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(`${this.photosTaken}/3`, w / 2, 35); 
-
-        const textIndex = Math.min(this.photosTaken, this.cameraPrompts.length - 1);
-        const promptText = this.cameraPrompts[textIndex];
-        ctx.font = "italic 20px 'Segoe UI', sans-serif";
-        ctx.fillStyle = "#FFFFFF";
-        ctx.shadowColor = "black"; ctx.shadowBlur = 4;
-        ctx.fillText(`"${promptText}"`, w / 2, h - 160); 
-        ctx.shadowBlur = 0;
-
-        ctx.font = "20px Arial";
-        ctx.fillStyle = "white";
-        ctx.fillText("⚡", 30, 35);
-        ctx.fillText("🔄", w - 40, h - 70);
+        // NO TEXT, NO BARS, NO CHARACTERS
     }
 
     drawCharacters(ctx, width, height, assets) {
@@ -170,27 +137,17 @@ export default class WaterfallScene {
             if (this.dialogue.current.speaker === 'you') youKey = this.dialogue.current.expression;
         }
 
-        if (this.sceneState === 2) {
-            const index = Math.min(this.photosTaken, this.cameraPoses.length - 1);
-            herKey = this.cameraPoses[index];
-        }
-        
+        // If in sleep mode
         if (this.sceneState === 3) herKey = 'her_sleep';
 
         const her = assets.getImage(herKey) || assets.getImage('her_front');
         const you = assets.getImage(youKey) || assets.getImage('you_front');
         
         if (her) {
-            if (this.sceneState === 2) {
-                 const s = (height * 0.45) / her.height;
-                 const w = her.width * s;
-                 ctx.drawImage(her, (width - w)/2, height - (height*0.45), w, height*0.45);
-            } else {
-                 const s = (height * 0.45) / her.height;
-                 const w = her.width * s;
-                 const y = (this.sceneState === 3) ? height - (height*0.35) : height - (height*0.45);
-                 ctx.drawImage(her, -20, y, w, height*0.45);
-            }
+             const s = (height * 0.45) / her.height;
+             const w = her.width * s;
+             const y = (this.sceneState === 3) ? height - (height*0.35) : height - (height*0.45);
+             ctx.drawImage(her, -20, y, w, height*0.45);
         }
 
         if (you && this.sceneState !== 2 && this.sceneState !== 3) {
@@ -254,14 +211,13 @@ export default class WaterfallScene {
         this.flashOpacity = 1.0;
         if (this.manager.sound) this.manager.sound.playSFX('sfx_shutter');
 
-        // --- NEW CLEAN CAPTURE METHOD ---
-        // 1. Create a temporary canvas that is never added to the DOM
+        // --- CLEAN CAPTURE (Canvas Buffer) ---
+        // Creates a hidden canvas to grab ONLY the raw video frame
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = this.manager.width;
         tempCanvas.height = this.manager.height;
         const tCtx = tempCanvas.getContext('2d');
 
-        // 2. Draw ONLY the video feed onto it
         if (this.isCameraReady && this.videoElement) {
             const vidW = this.videoElement.videoWidth;
             const vidH = this.videoElement.videoHeight;
@@ -269,30 +225,20 @@ export default class WaterfallScene {
             const vidRatio = vidW / vidH;
             let drawW, drawH, drawX, drawY;
 
-            // Same Aspect Fill Logic
             if (vidRatio > screenRatio) {
-                drawH = tempCanvas.height; 
-                drawW = tempCanvas.height * vidRatio; 
-                drawX = (tempCanvas.width - drawW) / 2; 
-                drawY = 0;
+                drawH = tempCanvas.height; drawW = tempCanvas.height * vidRatio; drawX = (tempCanvas.width - drawW) / 2; drawY = 0;
             } else {
-                drawW = tempCanvas.width; 
-                drawH = tempCanvas.width / vidRatio; 
-                drawX = 0; 
-                drawY = (tempCanvas.height - drawH) / 2;
+                drawW = tempCanvas.width; drawH = tempCanvas.width / vidRatio; drawX = 0; drawY = (tempCanvas.height - drawH) / 2;
             }
 
-            // Mirror Flip Logic on Temp Canvas
             tCtx.translate(tempCanvas.width, 0);
             tCtx.scale(-1, 1);
             tCtx.drawImage(this.videoElement, 0, 0, vidW, vidH, drawX, drawY, drawW, drawH);
         } else {
-            // Fallback black screen if no camera
             tCtx.fillStyle = "#000";
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
         }
 
-        // 3. Save THIS clean canvas instead of the main one
         const dataURL = tempCanvas.toDataURL('image/jpeg', 0.9);
         this.capturedImages.push(dataURL);
         this.photosTaken++;
