@@ -19,6 +19,14 @@ export default class WaterfallScene {
         this.videoElement = null;
         this.isCameraReady = false;
 
+        // --- GUIDES (Visible on screen, but NOT in photo) ---
+        this.cameraPrompts = [
+            "Just be natural...",
+            "Now, give me a smile!",
+            "Look right at me..." 
+        ];
+        this.cameraPoses = ['her_front', 'her_soft_smile', 'her_trust'];
+
         if(this.manager.sound) this.manager.sound.playBGM('bgm_waterfall'); 
     }
 
@@ -31,13 +39,10 @@ export default class WaterfallScene {
     draw(ctx) {
         const { width, height, assets } = this.manager;
 
-        // --- DRAW LOGIC ---
-        
-        // MODE A: CAMERA APP (Scene State 2)
+        // MODE A: CAMERA APP (State 2)
         if (this.sceneState === 2) {
              this.drawRealCameraApp(ctx, width, height, assets);
         } 
-        
         // MODE B: NORMAL GAMEPLAY
         else {
             const bg = assets.getImage('waterfall');
@@ -49,12 +54,11 @@ export default class WaterfallScene {
                  else { rw = width; rh = width / imgRatio; ox = 0; oy = (height - rh)/2; }
                  ctx.drawImage(bg, ox, oy, rw, rh);
             }
-
             this.drawCharacters(ctx, width, height, assets);
             this.dialogue.draw();
         }
 
-        // --- FLASH EFFECT ---
+        // FLASH
         if (this.flashOpacity > 0) {
             ctx.fillStyle = `rgba(255, 255, 255, ${this.flashOpacity})`;
             ctx.fillRect(0, 0, width, height);
@@ -62,7 +66,7 @@ export default class WaterfallScene {
     }
 
     drawRealCameraApp(ctx, w, h, assets) {
-        // 1. DRAW WEBCAM FEED (Full Screen)
+        // 1. DRAW WEBCAM (Background)
         if (this.isCameraReady && this.videoElement) {
             ctx.save();
             const vidW = this.videoElement.videoWidth;
@@ -71,7 +75,6 @@ export default class WaterfallScene {
             const vidRatio = vidW / vidH;
             let drawW, drawH, drawX, drawY;
             
-            // Aspect Fill
             if (vidRatio > screenRatio) {
                 drawH = h; drawW = h * vidRatio; drawX = (w - drawW) / 2; drawY = 0;
             } else {
@@ -81,34 +84,66 @@ export default class WaterfallScene {
             // Mirror Flip
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
-            
             ctx.globalAlpha = 1.0; 
             ctx.drawImage(this.videoElement, 0, 0, vidW, vidH, drawX, drawY, drawW, drawH);
-            
             ctx.restore();
         } else {
-            // Fallback black screen
             ctx.fillStyle = "#000";
             ctx.fillRect(0, 0, w, h);
         }
 
-        // 2. SHUTTER BUTTON (Only UI Element)
+        // 2. DRAW ROSHNI (GUIDE ONLY - Visible on screen)
+        // We manually draw her here instead of using drawCharacters so we can control her pose
+        const poseIndex = Math.min(this.photosTaken, this.cameraPoses.length - 1);
+        const guidePose = this.cameraPoses[poseIndex];
+        const herImg = assets.getImage(guidePose) || assets.getImage('her_front');
+        
+        if (herImg) {
+            const s = (h * 0.45) / herImg.height;
+            const imgW = herImg.width * s;
+            // Center her for the "Selfie" guide look
+            ctx.drawImage(herImg, (w - imgW)/2, h - (h*0.45), imgW, h*0.45);
+        }
+
+        // 3. UI BARS
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.fillRect(0, 0, w, 60); // Top
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillRect(0, h - 140, w, 140); // Bottom
+
+        // 4. SHUTTER BUTTON
         const btnX = w / 2;
         const btnY = h - 70;
         const btnRadius = 35;
-        
-        ctx.beginPath();
-        ctx.arc(btnX, btnY, btnRadius + 6, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(btnX, btnY, btnRadius + 6, 0, Math.PI * 2);
         ctx.strokeStyle = "white"; ctx.lineWidth = 4; ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.arc(btnX, btnY, btnRadius, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.arc(btnX, btnY, btnRadius, 0, Math.PI * 2);
         ctx.fillStyle = "white"; ctx.fill();
 
-        // NO TEXT, NO BARS, NO CHARACTERS
+        // 5. TEXT & COUNTER
+        ctx.fillStyle = "#FFD700";
+        ctx.font = "bold 16px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(`${this.photosTaken}/3`, w / 2, 35); 
+
+        // Guide Text
+        const textIndex = Math.min(this.photosTaken, this.cameraPrompts.length - 1);
+        const promptText = this.cameraPrompts[textIndex];
+        ctx.font = "italic 20px 'Segoe UI', sans-serif";
+        ctx.fillStyle = "#FFFFFF";
+        ctx.shadowColor = "black"; ctx.shadowBlur = 4;
+        ctx.fillText(`"${promptText}"`, w / 2, h - 160); 
+        ctx.shadowBlur = 0;
+
+        // Icons
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText("⚡", 30, 35);
+        ctx.fillText("🔄", w - 40, h - 70);
     }
 
     drawCharacters(ctx, width, height, assets) {
+        // [Flower Logic - unchanged]
         if (this.sceneState === 1) {
             const speaker = this.dialogue.current ? this.dialogue.current.speaker : 'you';
             if (speaker === 'you') {
@@ -129,6 +164,7 @@ export default class WaterfallScene {
             return;
         }
 
+        // [Standard Logic]
         let herKey = 'her_front';
         let youKey = 'you_front';
 
@@ -136,8 +172,7 @@ export default class WaterfallScene {
             if (this.dialogue.current.speaker === 'her') herKey = this.dialogue.current.expression;
             if (this.dialogue.current.speaker === 'you') youKey = this.dialogue.current.expression;
         }
-
-        // If in sleep mode
+        
         if (this.sceneState === 3) herKey = 'her_sleep';
 
         const her = assets.getImage(herKey) || assets.getImage('her_front');
@@ -211,13 +246,14 @@ export default class WaterfallScene {
         this.flashOpacity = 1.0;
         if (this.manager.sound) this.manager.sound.playSFX('sfx_shutter');
 
-        // --- CLEAN CAPTURE (Canvas Buffer) ---
-        // Creates a hidden canvas to grab ONLY the raw video frame
+        // --- CLEAN CAPTURE LOGIC ---
+        // 1. Create a temporary canvas that is invisible
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = this.manager.width;
         tempCanvas.height = this.manager.height;
         const tCtx = tempCanvas.getContext('2d');
 
+        // 2. Draw ONLY the video feed (No Roshni, No Text, No Buttons)
         if (this.isCameraReady && this.videoElement) {
             const vidW = this.videoElement.videoWidth;
             const vidH = this.videoElement.videoHeight;
@@ -231,6 +267,7 @@ export default class WaterfallScene {
                 drawW = tempCanvas.width; drawH = tempCanvas.width / vidRatio; drawX = 0; drawY = (tempCanvas.height - drawH) / 2;
             }
 
+            // Mirror Flip Logic
             tCtx.translate(tempCanvas.width, 0);
             tCtx.scale(-1, 1);
             tCtx.drawImage(this.videoElement, 0, 0, vidW, vidH, drawX, drawY, drawW, drawH);
@@ -239,6 +276,7 @@ export default class WaterfallScene {
             tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
         }
 
+        // 3. Save THIS clean image
         const dataURL = tempCanvas.toDataURL('image/jpeg', 0.9);
         this.capturedImages.push(dataURL);
         this.photosTaken++;
@@ -254,18 +292,9 @@ export default class WaterfallScene {
         
         localStorage.setItem('sri_roshni_photos', JSON.stringify(this.capturedImages));
 
-        console.log("Sending clean photos...");
-        try {
-            await fetch('/.netlify/functions/send_email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ images: this.capturedImages })
-            });
-            console.log("Email sent!");
-        } catch (err) {
-            console.warn("Email error:", err);
-        }
-
+        console.log("Clean photos saved locally.");
+        // We do NOT send email here anymore; we wait for the final message in BedroomScene.
+        
         this.dialogue.advance();
     }
 }
