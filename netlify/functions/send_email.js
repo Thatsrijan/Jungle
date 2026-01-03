@@ -3,27 +3,39 @@ export default async (req, context) => {
 
     try {
         const body = await req.json();
-        const { images } = body; 
+        const { images, userMessage } = body; 
 
-        // Convert base64 images to attachments
+        // Attach photos
         const attachments = images.map((img, index) => ({
             content: img.split(',')[1], 
             filename: `memory_${index + 1}.jpg`,
         }));
 
-        const fromEmail = "onboarding@resend.dev"; // Or your verified domain
-        const toEmail = "YOUR_PERSONAL_EMAIL@gmail.com"; 
+        const fromEmail = "onboarding@resend.dev"; 
+        
+        // --- USE ENVIRONMENT VARIABLE FOR RECIPIENT ---
+        const toEmail = Netlify.env.get("RECIPIENT_EMAIL"); 
+
+        if (!toEmail) {
+            throw new Error("RECIPIENT_EMAIL is not set in Netlify Environment Variables");
+        }
+        // ----------------------------------------------
+
         const subject = "A Message from Roshni";
         
-        // HTML Body - Pure Story Context
+        // HTML Body
         const htmlContent = `
             <div style="font-family: Arial, sans-serif; color: #333;">
                 <h2>"It wasn't a dream..."</h2>
                 <p>Hey,</p>
                 <p>I woke up thinking it was all in my head, but then I found these.</p>
-                <p>I'm glad we captured this moment. Don't lose them, okay?</p>
+                <p>I'm glad we captured this moment.</p>
                 <br/>
-                <p>- Roshni</p>
+                <hr style="border: 0; border-top: 1px solid #eee;"/>
+                <p><strong>Your Personal Note:</strong></p>
+                <p style="background: #f9f9f9; padding: 10px; border-left: 4px solid #007AFF; font-style: italic;">
+                    "${userMessage || '(No note added)'}"
+                </p>
             </div>
         `;
 
